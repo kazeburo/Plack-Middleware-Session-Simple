@@ -77,7 +77,7 @@ sub call {
 
 sub get_session {
     my ($self, $env) = @_;
-    my $cookie = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->cookie_name};
+    my $cookie = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->{cookie_name}};
     return unless defined $cookie;
     return unless $cookie =~ m!\A[0-9a-f]{37}!;
 
@@ -85,10 +85,10 @@ sub get_session {
     my $chk = substr($cookie,31,6);
 
     my $has_key = List::Util::first {
-        $chk eq substr(Digest::SHA::hmac_sha1_hex($id.$_,$self->secret),0,6)
+        $chk eq substr(Digest::SHA::hmac_sha1_hex($id.$_,$self->{secret}),0,6)
     } (1,0);
     return ($id, {}) if $has_key == 0;
-    my $session = $self->store->get($id) or return;
+    my $session = $self->{store}->get($id) or return;
     return ($id, $session);
 }
 
@@ -100,7 +100,7 @@ sub generate_id {
 sub generate_chk {
     my ($self, $id, $has_key) = @_;
     $has_key = $has_key ? '1' : '0';
-    substr(Digest::SHA::hmac_sha1_hex($id.$has_key,$self->secret),0,6);
+    substr(Digest::SHA::hmac_sha1_hex($id.$has_key,$self->{secret}),0,6);
 }
 
 sub finalize {
@@ -121,13 +121,13 @@ sub finalize {
 
     if ( $need_store ) {
         if ($options->{expire}) {
-            $self->store->remove($options->{id});
+            $self->{store}->remove($options->{id});
         } elsif ($options->{change_id}) {
-            $self->store->remove($options->{id});
+            $self->{store}->remove($options->{id});
             ($options->{id}) = $self->generate_id();
-            $self->store->set($options->{id}, $session->untie);
+            $self->{store}->set($options->{id}, $session->untie);
         } else {
-            $self->store->set($options->{id}, $session->untie);
+            $self->{store}->set($options->{id}, $session->untie);
         }
     }
 
@@ -149,17 +149,17 @@ sub _set_cookie {
 
     delete $options{id};
 
-    $options{path}     = $self->path || '/' if !exists $options{path};
-    $options{domain}   = $self->domain      if !exists $options{domain} && defined $self->domain;
-    $options{secure}   = $self->secure      if !exists $options{secure} && defined $self->secure;
-    $options{httponly} = $self->httponly    if !exists $options{httponly} && defined $self->httponly;
+    $options{path}     = $self->{path} || '/' if !exists $options{path};
+    $options{domain}   = $self->{domain}      if !exists $options{domain} && defined $self->{domain};
+    $options{secure}   = $self->{secure}      if !exists $options{secure} && defined $self->{secure};
+    $options{httponly} = $self->{httponly}    if !exists $options{httponly} && defined $self->{httponly};
 
-    if (!exists $options{expires} && defined $self->expires) {
+    if (!exists $options{expires} && defined $self->{expires}) {
         $options{expires} = $self->expires;
     }
 
     my $cookie = bake_cookie( 
-        $self->cookie_name, {
+        $self->{cookie_name}, {
             value => $id,
             %options,
         }
