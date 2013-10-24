@@ -4,16 +4,14 @@ use 5.008005;
 use strict;
 use warnings;
 use parent qw/Plack::Middleware/;
-use Storable qw//;
-use Digest::SHA ();
+use Digest::SHA1 qw//;
 use Cookie::Baker;
 use Plack::Util;
 use Scalar::Util qw/blessed/;
-use List::Util qw//;
 use Plack::Util::Accessor qw/
     store
-    secret
     cookie_name
+    keep_empty
     path
     domain
     expires
@@ -35,11 +33,7 @@ sub prepare_app {
 
     $self->cookie_name('simple_session') unless $self->cookie_name;
     $self->path('/') unless defined $self->path;
-    
-    if ( !defined $self->secret ) {
-        warn 'secret is undefineded use "__FILE__" for this time. Highly recommended to use set your secret string';
-        $self->secret(__FILE__);
-    }
+    $self->keep_empty(1) unless defined $self->keep_empty;
 }
 
 sub call {
@@ -79,28 +73,15 @@ sub get_session {
     my ($self, $env) = @_;
     my $cookie = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->{cookie_name}};
     return unless defined $cookie;
-    return unless $cookie =~ m!\A[0-9a-f]{37}!;
+    return unless $cookie =~ m!\A[0-9a-f]{37}\Z!;
 
-    my $id = substr($cookie,0,31);
-    my $chk = substr($cookie,31,6);
-
-    my $has_key = List::Util::first {
-        $chk eq substr(Digest::SHA::hmac_sha1_hex($id.$_,$self->{secret}),0,6)
-    } (1,0);
-    return ($id, {}) if $has_key == 0;
-    my $session = $self->{store}->get($id) or return;
-    return ($id, $session);
+    my $session = $self->{store}->get($cookie) or return;
+    return ($cookie, $session);
 }
 
 sub generate_id {
     my ($self) = @_;
-    substr(Digest::SHA::sha1_hex(rand() . $$ . {} . time),int(rand(4)),31);
-}
-
-sub generate_chk {
-    my ($self, $id, $has_key) = @_;
-    $has_key = $has_key ? '1' : '0';
-    substr(Digest::SHA::hmac_sha1_hex($id.$has_key,$self->{secret}),0,6);
+    substr(Digest::SHA1::sha1_hex(rand() . $$ . {} . time),int(rand(4)),37);
 }
 
 sub finalize {
@@ -109,13 +90,16 @@ sub finalize {
     my $new_session = delete $options->{new_session};
 
     my $need_store;
-    if ( $session->is_dirty || $options->{expire} || $options->{change_id}) {
+    if ( ($new_session && $self->{keep_empty} && ! $session->has_key )
+             || $session->[1] || $options->{expire} || $options->{change_id}) {
         $need_store = 1;
     }
     $need_store = 0 if $options->{no_store};
 
     my $set_cookie;
-    if ( $new_session || $session->is_vary || $options->{expire} || $options->{change_id}) {
+    if ( ($new_session && $self->{keep_empty} && ! $session->has_key )
+             || ($new_session && $session->[1] )
+             || $options->{expire} || $options->{change_id}) {
         $set_cookie = 1;
     }
 
@@ -125,21 +109,19 @@ sub finalize {
         } elsif ($options->{change_id}) {
             $self->{store}->remove($options->{id});
             ($options->{id}) = $self->generate_id();
-            $self->{store}->set($options->{id}, $session->untie);
+            $self->{store}->set($options->{id}, $session->[0]);
         } else {
-            $self->{store}->set($options->{id}, $session->untie);
+            $self->{store}->set($options->{id}, $session->[0]);
         }
     }
 
     if ( $set_cookie ) {
         if ($options->{expire}) {
             $self->_set_cookie(
-                $options->{id} . $self->generate_chk($options->{id},0),
-                $res, %$options, expires => 'now'); 
+                $options->{id}, $res, %$options, expires => 'now'); 
         } else {
             $self->_set_cookie(
-                $options->{id} . $self->generate_chk($options->{id},$session->has_key),
-                $res, %$options); 
+                $options->{id}, $res, %$options); 
         }
     }
 }
@@ -155,7 +137,7 @@ sub _set_cookie {
     $options{httponly} = $self->{httponly}    if !exists $options{httponly} && defined $self->{httponly};
 
     if (!exists $options{expires} && defined $self->{expires}) {
-        $options{expires} = $self->expires;
+        $options{expires} = $self->{expires};
     }
 
     my $cookie = bake_cookie( 
@@ -182,37 +164,22 @@ sub TIEHASH {
 }
 
 sub STORE {
-    my $self = shift;
-    $self->[1]++;
-    $self->SUPER::STORE(@_);
+    $_[0]->[1]++;
+    $_[0]->[0]{$_[1]} = $_[2]
 }
 
 sub DELETE {
-    my $self = shift;
-    $self->[1]++;
-    $self->SUPER::DELETE(@_);
+    $_[0]->[1]++;
+    delete $_[0]->[0]->{$_[1]}
 }
 
 sub CLEAR {
-    my $self = shift;
-    $self->[1]++;
-    $self->SUPER::CLEAR(@_);
-}
-
-sub is_dirty {
-    $_[0]->[1];
-}
-
-sub untie : method  {
-    $_[0]->[0];
+    $_[0]->[1]++;
+    %{$_[0]->[0]} = ()
 }
 
 sub has_key {
-    scalar keys %{$_[0]->[0]};
-} 
-
-sub is_vary {
-    $_[0]->[2] == 0 && keys %{$_[0]->[0]} > 0;
+    scalar keys %{$_[0]->[0]}
 }
 
 1;
@@ -265,10 +232,30 @@ object instance that has get, set, and remove methods.
 
 This is the name of the session key, it defaults to 'simple_session'.
 
-=item secret
+=item keep_empty
 
-Server side secret to sign the session data using HMAC SHA1. Defaults to __FILE__.
-But strongly recommended to set your own secret string.
+If disabled, Plack::Middleware::Session::Simple does not output Set-Cookie header and store session until session are used. You can reduce Set-Cookie header and access to session store that is not required. (default: true/enabled)
+
+    builder {
+        enable 'Session::Simple',
+            cache => Cache::Memcached::Fast->new({servers=>[..]}),
+            session_key => 'myapp_session',
+            keep_empty => 0;
+        mount '/' => sub {
+            my $env = shift;
+            [200,[], ["ok"]];
+        },
+        mount '/login' => sub {
+            my $env = shift;
+            $env->{'psgix.session'}->{user} = 'session user'
+            [200,[], ["login"]];
+        },
+    };
+    
+    my $res = $app->(req_to_psgi(GET "/")); #res does not have Set-Cookie    
+    my $res = $app->(req_to_psgi(GET "/login")); #res has Set-Cookie
+
+If you have a plan to use session_id as csrf token, you must not disable keep_empty.
 
 =item path
 

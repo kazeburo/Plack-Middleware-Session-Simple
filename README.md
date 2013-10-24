@@ -42,10 +42,31 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
     This is the name of the session key, it defaults to 'simple\_session'.
 
-- secret
+- keep\_empty
 
-    Server side secret to sign the session data using HMAC SHA1. Defaults to \_\_FILE\_\_.
-    But strongly recommended to set your own secret string.
+    If disabled, Plack::Middleware::Session::Simple does not output Set-Cookie header and store session until session are used. You can reduce Set-Cookie header and access to session store that is not required. (default: true/enabled)
+
+        builder {
+            enable 'Session::Simple',
+                cache => Cache::Memcached::Fast->new({servers=>[..]}),
+                session_key => 'myapp_session',
+                keep_empty => 0;
+            mount '/' => sub {
+                my $env = shift;
+                [200,[], ["ok"]];
+            },
+            mount '/login' => sub {
+                my $env = shift;
+                $env->{'psgix.session'}->{user} = 'session user'
+                [200,[], ["login"]];
+            },
+        };
+        
+
+        my $res = $app->(req_to_psgi(GET "/")); #res does not have Set-Cookie    
+        my $res = $app->(req_to_psgi(GET "/login")); #res has Set-Cookie
+
+    If you have a plan to use session\_id as csrf token, you must not disable keep\_empty.
 
 - path
 
