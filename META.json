@@ -53,5 +53,16 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/kazeburo/Plack-Middleware-Session-Simple/issues"
+      },
+      "homepage" : "https://github.com/kazeburo/Plack-Middleware-Session-Simple",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/kazeburo/Plack-Middleware-Session-Simple.git",
+         "web" : "https://github.com/kazeburo/Plack-Middleware-Session-Simple"
+      }
+   },
    "version" : "0.01"
 }
