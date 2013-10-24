@@ -5,13 +5,15 @@ use strict;
 use warnings;
 use parent qw/Plack::Middleware/;
 use Storable qw//;
-use Digest::SHA1 ();
+use Digest::SHA ();
 use Cookie::Baker;
 use Plack::Util;
+use Scalar::Util qw/blessed/;
+use List::Util qw//;
 use Plack::Util::Accessor qw/
-    cache
-    keep_empty
-    session_key
+    store
+    secret
+    cookie_name
     path
     domain
     expires
@@ -24,11 +26,21 @@ our $VERSION = "0.01";
 sub prepare_app {
     my $self = shift;
 
-    $self->session_key('simple_session') unless $self->session_key;
-    $self->path('/') unless defined $self->path;
-    $self->keep_empty(1) unless defined $self->keep_empty;
-}
+    my $store = $self->store;
+    die('store require get, set and remove method.')
+        unless blessed $store
+            && $store->can('get')
+            && $store->can('set')
+            && $store->can('remove');
 
+    $self->cookie_name('simple_session') unless $self->cookie_name;
+    $self->path('/') unless defined $self->path;
+    
+    if ( !defined $self->secret ) {
+        warn 'secret is undefineded use "__FILE__" for this time. Highly recommended to use set your secret string';
+        $self->secret(__FILE__);
+    }
+}
 
 sub call {
     my ($self,$env) = @_;
@@ -44,7 +56,7 @@ sub call {
             id => $id,
         };
     } else {
-        $id = $self->generate_id($env);
+        my $id = $self->generate_id();
         $tied = tie my %session, 
             'Plack::Middleware::Session::Simple::Session';
         $env->{'psgix.session'} = \%session;
@@ -65,17 +77,30 @@ sub call {
 
 sub get_session {
     my ($self, $env) = @_;
-    my $id = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->session_key};
-    return unless defined $id;
-    return unless $id =~ m!\A[0-9a-f]{37}!;
+    my $cookie = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->cookie_name};
+    return unless defined $cookie;
+    return unless $cookie =~ m!\A[0-9a-f]{37}!;
 
-    my $session = $self->cache->get($id) or return;
+    my $id = substr($cookie,0,31);
+    my $chk = substr($cookie,31,6);
+
+    my $has_key = List::Util::first {
+        $chk eq substr(Digest::SHA::hmac_sha1_hex($id.$_,$self->secret),0,6)
+    } (1,0);
+    return ($id, {}) if $has_key == 0;
+    my $session = $self->store->get($id) or return;
     return ($id, $session);
 }
 
 sub generate_id {
-    my ($self, $env) = @_;
-    substr(Digest::SHA1::sha1_hex(rand() . $$ . {} . time),int(rand(4)),37);
+    my ($self) = @_;
+    substr(Digest::SHA::sha1_hex(rand() . $$ . {} . time),int(rand(4)),31);
+}
+
+sub generate_chk {
+    my ($self, $id, $has_key) = @_;
+    $has_key = $has_key ? '1' : '0';
+    substr(Digest::SHA::hmac_sha1_hex($id.$has_key,$self->secret),0,6);
 }
 
 sub finalize {
@@ -84,37 +109,37 @@ sub finalize {
     my $new_session = delete $options->{new_session};
 
     my $need_store;
-    if ( ($new_session && $self->keep_empty && ! $session->has_key )
-             || $session->is_dirty
-             || $options->{expire} || $options->{change_id}) {
+    if ( $session->is_dirty || $options->{expire} || $options->{change_id}) {
         $need_store = 1;
     }
     $need_store = 0 if $options->{no_store};
 
     my $set_cookie;
-    if ( ($new_session && $self->keep_empty && ! $session->has_key )
-             || ($new_session && $session->is_dirty )
-             || $options->{expire} || $options->{change_id}) {
+    if ( $new_session || $session->is_vary || $options->{expire} || $options->{change_id}) {
         $set_cookie = 1;
     }
 
     if ( $need_store ) {
         if ($options->{expire}) {
-            $self->cache->remove($options->{id});
+            $self->store->remove($options->{id});
         } elsif ($options->{change_id}) {
-            $self->cache->remove($options->{id});
-            $options->{id} = $self->generate_id($env);
-            $self->cache->set($options->{id}, $session->untie);
+            $self->store->remove($options->{id});
+            ($options->{id}) = $self->generate_id();
+            $self->store->set($options->{id}, $session->untie);
         } else {
-            $self->cache->set($options->{id}, $session->untie);
+            $self->store->set($options->{id}, $session->untie);
         }
     }
 
     if ( $set_cookie ) {
         if ($options->{expire}) {
-            $self->_set_cookie($options->{id}, $res, %$options, expires => 'now'); 
+            $self->_set_cookie(
+                $options->{id} . $self->generate_chk($options->{id},0),
+                $res, %$options, expires => 'now'); 
         } else {
-            $self->_set_cookie($options->{id}, $res, %$options); 
+            $self->_set_cookie(
+                $options->{id} . $self->generate_chk($options->{id},$session->has_key),
+                $res, %$options); 
         }
     }
 }
@@ -134,7 +159,7 @@ sub _set_cookie {
     }
 
     my $cookie = bake_cookie( 
-        $self->session_key, {
+        $self->cookie_name, {
             value => $id,
             %options,
         }
@@ -153,7 +178,7 @@ use base qw/Tie::ExtraHash/;
 
 sub TIEHASH {
     my $class = shift;
-    bless [{@_},0], $class;
+    bless [{@_},0, scalar @_], $class;
 }
 
 sub STORE {
@@ -179,12 +204,16 @@ sub is_dirty {
 }
 
 sub untie : method  {
-    return $_[0]->[0];
+    $_[0]->[0];
 }
 
 sub has_key {
-    return scalar keys %{$_[0]->[0]};
+    scalar keys %{$_[0]->[0]};
 } 
+
+sub is_vary {
+    $_[0]->[2] == 0 && keys %{$_[0]->[0]} > 0;
+}
 
 1;
 
@@ -209,8 +238,8 @@ Plack::Middleware::Session::Simple - Make Session Simple
     
     builder {
         enable 'Session::Simple',
-            cache => Cache::Memcached::Fast->new({servers=>[..]}),
-            session_key => 'myapp_session';
+            store => Cache::Memcached::Fast->new({servers=>[..]}),
+            cookie_name => 'myapp_session';
         $app
     };
 
@@ -220,7 +249,7 @@ Plack::Middleware::Session::Simple - Make Session Simple
 Plack::Middleware::Session::Simple is a yet another session management module.
 This middleware supports psgix.session and psgi.session.options. 
 Plack::Middleware::Session::Simple has compatibility with Plack::Middleware::Session 
-and you can reduce unnecessary accessing to cache Store and Set-Cookie header.
+and you can reduce unnecessary accessing to store and Set-Cookie header.
 
 This module uses Cookie to keep session state. does not support URI based session state.
 
@@ -228,37 +257,18 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
 =over 4
 
-=item cache
+=item store
 
-cache object instance that has get, set, and remove methods.
+object instance that has get, set, and remove methods.
 
-=item session_key
+=item cookie_name
 
 This is the name of the session key, it defaults to 'simple_session'.
 
-=item keep_empty
+=item secret
 
-If disabled, Plack::Middleware::Session::Simple does not output Set-Cookie header and store session until session are used. You can reduce Set-Cookie header and access to session store that is not required. (default: true)
-
-    builder {
-        enable 'Session::Simple',
-            cache => Cache::Memcached::Fast->new({servers=>[..]}),
-            session_key => 'myapp_session',
-            keep_empty => 0;
-        mount '/' => sub {
-            my $env = shift;
-            [200,[], ["ok"]];
-        },
-        mount '/login' => sub {
-            my $env = shift;
-            $env->{'psgix.session'}->{user} = 'session user'
-            [200,[], ["login"]];
-        },
-    };
-    
-    my $res = $app->(req_to_psgi(GET "/")); #res does not have Set-Cookie
-    
-    my $res = $app->(req_to_psgi(GET "/login")); #res has Set-Cookie
+Server side secret to sign the session data using HMAC SHA1. Defaults to __FILE__.
+But strongly recommended to set your own secret string.
 
 =item path
 

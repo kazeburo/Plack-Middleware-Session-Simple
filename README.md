@@ -16,8 +16,8 @@ Plack::Middleware::Session::Simple - Make Session Simple
 
     builder {
         enable 'Session::Simple',
-            cache => Cache::Memcached::Fast->new({servers=>[..]}),
-            session_key => 'myapp_session';
+            store => Cache::Memcached::Fast->new({servers=>[..]}),
+            cookie_name => 'myapp_session';
         $app
     };
 
@@ -28,45 +28,24 @@ Plack::Middleware::Session::Simple - Make Session Simple
 Plack::Middleware::Session::Simple is a yet another session management module.
 This middleware supports psgix.session and psgi.session.options. 
 Plack::Middleware::Session::Simple has compatibility with Plack::Middleware::Session 
-and you can reduce unnecessary accessing to cache Store and Set-Cookie header.
+and you can reduce unnecessary accessing to store and Set-Cookie header.
 
 This module uses Cookie to keep session state. does not support URI based session state.
 
 # OPTIONS
 
-- cache
+- store
 
-    cache object instance that has get, set, and remove methods.
+    object instance that has get, set, and remove methods.
 
-- session\_key
+- cookie\_name
 
     This is the name of the session key, it defaults to 'simple\_session'.
 
-- keep\_empty
+- secret
 
-    If disabled, Plack::Middleware::Session::Simple does not output Set-Cookie header and store session until session are used. You can reduce Set-Cookie header and access to session store that is not required. (default: true)
-
-        builder {
-            enable 'Session::Simple',
-                cache => Cache::Memcached::Fast->new({servers=>[..]}),
-                session_key => 'myapp_session',
-                keep_empty => 0;
-            mount '/' => sub {
-                my $env = shift;
-                [200,[], ["ok"]];
-            },
-            mount '/login' => sub {
-                my $env = shift;
-                $env->{'psgix.session'}->{user} = 'session user'
-                [200,[], ["login"]];
-            },
-        };
-        
-
-        my $res = $app->(req_to_psgi(GET "/")); #res does not have Set-Cookie
-        
-
-        my $res = $app->(req_to_psgi(GET "/login")); #res has Set-Cookie
+    Server side secret to sign the session data using HMAC SHA1. Defaults to \_\_FILE\_\_.
+    But strongly recommended to set your own secret string.
 
 - path
 
