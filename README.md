@@ -26,9 +26,9 @@ Plack::Middleware::Session::Simple - Make Session Simple
 # DESCRIPTION
 
 Plack::Middleware::Session::Simple is a yet another session management module.
-This middleware supports psgix.session and psgi.session.options. 
-Plack::Middleware::Session::Simple has compatibility with Plack::Middleware::Session 
-and you can reduce unnecessary accessing to store and Set-Cookie header.
+This middleware has compatibility with Plack::Middleware::Session by
+supporting psgix.session and psgi.session.options. 
+You can reduce unnecessary accessing to store and Set-Cookie header.
 
 This module uses Cookie to keep session state. does not support URI based session state.
 
