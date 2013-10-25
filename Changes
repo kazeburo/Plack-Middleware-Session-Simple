@@ -2,5 +2,7 @@ Revision history for Perl extension Plack-Middleware-Session-Simple
 
 {{$NEXT}}
 
+0.01 2013-10-25T05:17:21Z
+
     - original version
 
