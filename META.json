@@ -58,6 +58,7 @@
             "HTTP::CookieJar" : "0.005",
             "HTTP::Message" : "5.814",
             "Test::More" : "0.98",
+            "Test::Requires" : "0.07",
             "Test::TCP" : "2.01"
          }
       }

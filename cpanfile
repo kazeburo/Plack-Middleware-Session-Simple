@@ -12,5 +12,6 @@ on 'test' => sub {
     requires 'Cache::Memory::Simple', '1.02';
     requires 'Test::TCP', '2.01';
     requires 'HTTP::CookieJar', '0.005';
+    requires 'Test::Requires', '0.07';
 };
 

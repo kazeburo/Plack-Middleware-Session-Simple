@@ -1,4 +1,6 @@
 language: perl
+before_install:
+  - cpanm -n Plack::Middleware::Session
 perl:
   - 5.12
   - 5.14
