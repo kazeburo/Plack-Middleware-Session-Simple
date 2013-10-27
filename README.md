@@ -89,6 +89,14 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
     HttpOnly flag for the cookie, if nothing is supplied then it will not be included in the cookie.
 
+- sid\_generator
+
+    CodeRef that used to generate unique session ids, by default it uses SHA1
+
+- sid\_validator
+
+    Regexp that used to validate session id in Cookie
+
 # LICENSE
 
 Copyright (C) Masahiro Nagano.

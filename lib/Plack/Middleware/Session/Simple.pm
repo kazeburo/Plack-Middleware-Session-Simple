@@ -11,6 +11,8 @@ use Scalar::Util qw/blessed/;
 use Plack::Util::Accessor qw/
     store
     cookie_name
+    sid_generator
+    sid_validator
     keep_empty
     path
     domain
@@ -34,6 +36,18 @@ sub prepare_app {
     $self->cookie_name('simple_session') unless $self->cookie_name;
     $self->path('/') unless defined $self->path;
     $self->keep_empty(1) unless defined $self->keep_empty;
+
+    if ( !$self->sid_generator ) {
+        $self->sid_generator(sub{
+            Digest::SHA1::sha1_hex(rand() . $$ . {} . time)
+        });
+    }
+    if ( !$self->sid_validator ) {
+        $self->sid_validator(
+            qr/\A[0-9a-f]{40}\Z/
+        );
+    }
+
 }
 
 sub call {
@@ -50,7 +64,7 @@ sub call {
             id => $id,
         };
     } else {
-        my $id = $self->generate_id();
+        my $id = $self->{sid_generator}->();
         $tied = tie my %session, 
             'Plack::Middleware::Session::Simple::Session';
         $env->{'psgix.session'} = \%session;
@@ -73,15 +87,10 @@ sub get_session {
     my ($self, $env) = @_;
     my $cookie = crush_cookie($env->{HTTP_COOKIE} || '')->{$self->{cookie_name}};
     return unless defined $cookie;
-    return unless $cookie =~ m!\A[0-9a-f]{37}\Z!;
+    return unless $cookie =~ $self->{sid_validator};
 
     my $session = $self->{store}->get($cookie) or return;
     return ($cookie, $session);
-}
-
-sub generate_id {
-    my ($self) = @_;
-    substr(Digest::SHA1::sha1_hex(rand() . $$ . {} . time),int(rand(4)),37);
 }
 
 sub finalize {
@@ -108,7 +117,7 @@ sub finalize {
             $self->{store}->remove($options->{id});
         } elsif ($options->{change_id}) {
             $self->{store}->remove($options->{id});
-            ($options->{id}) = $self->generate_id();
+            $options->{id} = $self->{sid_generator}->();
             $self->{store}->set($options->{id}, $session->[0]);
         } else {
             $self->{store}->set($options->{id}, $session->[0]);
@@ -277,6 +286,14 @@ Secure flag for the cookie, if nothing is supplied then it will not be included 
 =item httponly
 
 HttpOnly flag for the cookie, if nothing is supplied then it will not be included in the cookie.
+
+=item sid_generator
+
+CodeRef that used to generate unique session ids, by default it uses SHA1
+
+=item sid_validator
+
+Regexp that used to validate session id in Cookie
 
 =back 
 

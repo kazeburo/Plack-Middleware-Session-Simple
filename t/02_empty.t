@@ -59,7 +59,7 @@ test_tcp(
         {
             my $res = $ua->request(GET "http://localhost:$port/login");
             ok($res->content, "LOGIN");
-            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{37});/);
+            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             $first_cookie = $1;
         }
 
@@ -82,7 +82,7 @@ test_tcp(
         {
             my $res = $ua->request(GET "http://localhost:$port/logout");
             ok($res->content, "LOGOUT");
-            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{37});/);
+            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             is($1, $first_cookie);
         }
 
@@ -95,7 +95,7 @@ test_tcp(
         {
             my $res = $ua->request(GET "http://localhost:$port/counter");
             ok($res->content, "counter=>1");
-            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{37});/);
+            ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             isnt($1, $first_cookie);
         }
 
