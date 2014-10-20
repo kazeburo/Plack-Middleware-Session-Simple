@@ -303,9 +303,17 @@ Regexp that used to validate session id in Cookie
 
 =item serializer
 
-serialize,deserialize method. Optional
-  
-  serializer => [ \&encode_json, \&decode_json ],
+serialize,deserialize method. Optional. This is useful with Cache::FastMmap
+
+  my $cfm = Cache::FastMmap->new(raw_values => 1);
+  my $decoder = Sereal::Decoder->new();
+  my $encoder = Sereal::Encoder->new();
+  builder {
+    enable 'Session::Simple',
+        store => $fm,
+        serializer => [ sub { $encoder->encode($_[0]) }, sub { $decoder->decode($_[0]) } ],
+    $app;
+  };
 
 =back 
 

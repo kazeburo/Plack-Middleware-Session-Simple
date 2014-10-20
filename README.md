@@ -95,9 +95,17 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
 - serializer
 
-    serialize,deserialize method. Optional
+    serialize,deserialize method. Optional. This is useful with Cache::FastMmap
 
-        serializer => [ \&encode_json, \&decode_json ],
+        my $cfm = Cache::FastMmap->new(raw_values => 1);
+        my $decoder = Sereal::Decoder->new();
+        my $encoder = Sereal::Encoder->new();
+        builder {
+          enable 'Session::Simple',
+              store => $fm,
+              serializer => [ sub { $encoder->encode($_[0]) }, sub { $decoder->decode($_[0]) } ],
+          $app;
+        };
 
 # LICENSE
 
