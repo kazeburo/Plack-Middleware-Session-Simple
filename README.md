@@ -13,15 +13,12 @@ Plack::Middleware::Session::Simple - Make Session Simple
         [200,[], ["counter => $counter"]];
     };
     
-
     builder {
         enable 'Session::Simple',
             store => Cache::Memcached::Fast->new({servers=>[..]}),
             cookie_name => 'myapp_session';
         $app
     };
-
-
 
 # DESCRIPTION
 
@@ -62,7 +59,6 @@ This module uses Cookie to keep session state. does not support URI based sessio
             },
         };
         
-
         my $res = $app->(req_to_psgi(GET "/")); #res does not have Set-Cookie    
         my $res = $app->(req_to_psgi(GET "/login")); #res has Set-Cookie
 
@@ -78,7 +74,7 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
 - expires
 
-    Cookie's expires date time. several formats are supported. see [Cookie::Baker](http://search.cpan.org/perldoc?Cookie::Baker) for details.
+    Cookie's expires date time. several formats are supported. see [Cookie::Baker](https://metacpan.org/pod/Cookie::Baker) for details.
     if nothing is supplied then it will not be included in the cookie, which means the session expires per browser session.
 
 - secure
@@ -96,6 +92,12 @@ This module uses Cookie to keep session state. does not support URI based sessio
 - sid\_validator
 
     Regexp that used to validate session id in Cookie
+
+- serializer
+
+    serialize,deserialize method. Optional
+
+        serializer => [ \&encode_json, \&decode_json ],
 
 # LICENSE
 

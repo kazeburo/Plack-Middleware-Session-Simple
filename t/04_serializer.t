@@ -33,6 +33,7 @@ my $app = builder {
     mount '/json' => sub {
         my $env = shift;
         my $json = $cache->get($env->{'psgix.session.options'}->{id});
+warn $json;
         my $ref = $JSON->decode($json);
         my $name = $ref->{username};
         [200,[],["JSON $name,$json"]];

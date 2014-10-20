@@ -52,49 +52,49 @@ test_tcp(
         my $first_cookie;
         {
             my $res = $ua->request(GET "http://localhost:$port/");
-            ok($res->content, "TOP");
+            is($res->content, "TOP");
             ok(!$res->header("Set-Cookie"));
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/login");
-            ok($res->content, "LOGIN");
+            is($res->content, "LOGIN");
             ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             $first_cookie = $1;
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/");
-            ok($res->content, "TOP: Hello foo");
+            is($res->content, "TOP: Hello foo");
             ok(!$res->header("Set-Cookie"));
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/counter");
-            ok($res->content, "counter=>1");
+            is($res->content, "counter=>1");
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/counter");
-            ok($res->content, "counter=>2");
+            is($res->content, "counter=>2");
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/logout");
-            ok($res->content, "LOGOUT");
+            is($res->content, "LOGOUT");
             ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             is($1, $first_cookie);
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/");
-            ok($res->content, "TOP");
+            is($res->content, "TOP");
             ok(!$res->header("Set-Cookie"));
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/counter");
-            ok($res->content, "counter=>1");
+            is($res->content, "counter=>1");
             ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             isnt($1, $first_cookie);
         }

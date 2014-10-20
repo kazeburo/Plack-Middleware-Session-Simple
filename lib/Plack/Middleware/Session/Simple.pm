@@ -19,6 +19,7 @@ use Plack::Util::Accessor qw/
     expires
     secure
     httponly
+    serializer
 /;
 
 our $VERSION = "0.02";
@@ -90,6 +91,7 @@ sub get_session {
     return unless $cookie =~ $self->{sid_validator};
 
     my $session = $self->{store}->get($cookie) or return;
+    $session = $self->{serializer}->[1]->($session) if $self->{serializer};
     return ($cookie, $session);
 }
 
@@ -118,9 +120,13 @@ sub finalize {
         } elsif ($options->{change_id}) {
             $self->{store}->remove($options->{id});
             $options->{id} = $self->{sid_generator}->();
-            $self->{store}->set($options->{id}, $session->[0]);
+            my $val = $session->[0];
+            $val = $self->{serializer}->[0]->($val) if $self->{serializer};
+            $self->{store}->set($options->{id}, $val);            
         } else {
-            $self->{store}->set($options->{id}, $session->[0]);
+            my $val = $session->[0];
+            $val = $self->{serializer}->[0]->($val) if $self->{serializer};
+            $self->{store}->set($options->{id}, $val);
         }
     }
 
@@ -294,6 +300,12 @@ CodeRef that used to generate unique session ids, by default it uses SHA1
 =item sid_validator
 
 Regexp that used to validate session id in Cookie
+
+=item serializer
+
+serialize,deserialize method. Optional
+  
+  serializer => [ \&encode_json, \&decode_json ],
 
 =back 
 

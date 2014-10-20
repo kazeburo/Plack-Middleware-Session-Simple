@@ -48,24 +48,24 @@ test_tcp(
         my $first_cookie;
         {
             my $res = $ua->request(GET "http://localhost:$port/simple");
-            ok($res->content, "counter=>1");
+            is($res->content, "counter=>1");
             ok($res->header("Set-Cookie") =~ qr/myapp_session=([a-f0-9]{40});/);
             $first_cookie = $1;
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/simple");
-            ok($res->content, "counter=>1");
+            is($res->content, "counter=>2");
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/session");
-            ok($res->content, "counter=>2");
+            is($res->content, "counter=>3");
         }
 
         {
             my $res = $ua->request(GET "http://localhost:$port/simple");
-            ok($res->content, "counter=>3");
+            is($res->content, "counter=>4");
         }
 
     }
