@@ -220,7 +220,7 @@ Plack::Middleware::Session::Simple - Make Session Simple
     
     builder {
         enable 'Session::Simple',
-            store => Cache::Memcached::Fast->new({servers=>[..]}),
+            store => Cache::Memcached::Fast::Safe->new({servers=>[..]}),
             cookie_name => 'myapp_session';
         $app
     };
@@ -253,7 +253,7 @@ If disabled, Plack::Middleware::Session::Simple does not output Set-Cookie heade
 
     builder {
         enable 'Session::Simple',
-            store => Cache::Memcached::Fast->new({servers=>[..]}),
+            store => Cache::Memcached::Fast::Safe->new({servers=>[..]}),
             session_key => 'myapp_session',
             keep_empty => 0;
         mount '/' => sub {
