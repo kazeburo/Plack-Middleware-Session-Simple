@@ -15,7 +15,7 @@ Plack::Middleware::Session::Simple - Make Session Simple
     
     builder {
         enable 'Session::Simple',
-            store => Cache::Memcached::Fast->new({servers=>[..]}),
+            store => Cache::Memcached::Fast::Safe->new({servers=>[..]}),
             cookie_name => 'myapp_session';
         $app
     };
@@ -45,7 +45,7 @@ This module uses Cookie to keep session state. does not support URI based sessio
 
         builder {
             enable 'Session::Simple',
-                store => Cache::Memcached::Fast->new({servers=>[..]}),
+                store => Cache::Memcached::Fast::Safe->new({servers=>[..]}),
                 cookie_name => 'myapp_session',
                 keep_empty => 0;
             mount '/' => sub {
