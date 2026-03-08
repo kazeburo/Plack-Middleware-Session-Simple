@@ -5,6 +5,7 @@ requires 'Cookie::Baker', '0.02';
 requires 'Plack', '1.0029';
 requires 'Scalar::Util';
 requires 'Tie::Hash';
+requires 'Tie::ExtraHash';
 recommends 'Crypt::SysRandom::XS' => '0';
 
 on 'test' => sub {
