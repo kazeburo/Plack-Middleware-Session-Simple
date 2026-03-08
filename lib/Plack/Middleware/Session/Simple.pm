@@ -22,7 +22,7 @@ use Plack::Util::Accessor qw/
     serializer
 /;
 
-our $VERSION = "0.04";
+our $VERSION = "0.05";
 
 sub prepare_app {
     my $self = shift;
